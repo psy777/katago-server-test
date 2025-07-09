@@ -4,6 +4,10 @@ const { analyze } = require('./engine');
 const app = express();
 app.use(express.json());
 
+app.get('/', (req, res) => {
+  res.send('Hello World!');
+});
+
 app.post('/analyze', async (req, res) => {
   console.log('--- /analyze hit ---', req.body);
   try {
@@ -16,6 +20,7 @@ app.post('/analyze', async (req, res) => {
 });
 
 const PORT = 8080;
+console.log('Attempting to start server...');
 app.listen(PORT, () => {
   console.log(`KataGo API listening on http://localhost:${PORT}`);
 });

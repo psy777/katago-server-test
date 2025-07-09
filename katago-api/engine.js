@@ -14,30 +14,46 @@ const katago = spawn(KATAGO_BIN, [
 
 const rl = readline.createInterface({ input: katago.stdout });
 
+katago.stderr.pipe(process.stderr);
+
+katago.on('exit', (code) => {
+  console.log(`[katago process exited with code ${code}]`);
+});
+
 let chain = Promise.resolve();
 
-function sendGTP(cmd) {
-  console.log('[SEND]', cmd);
-  katago.stdin.write(cmd + '\n');
+function sendQuery(query) {
+  console.log('[SEND]', query);
+  katago.stdin.write(query + '\n');
 }
 
 function analyze(moves, visits = 100) {
   chain = chain.then(() => new Promise((resolve, reject) => {
-    sendGTP('boardsize 19');
-    sendGTP('clear_board');
-    moves.forEach(m => sendGTP('play ' + m));
-    sendGTP(`kata-analyze B ${visits}`);
+    const query = {
+      id: `query-${Date.now()}`,
+      moves: moves.map((move, i) => [i % 2 === 0 ? 'B' : 'W', move]),
+      boardXSize: 19,
+      boardYSize: 19,
+      maxVisits: visits,
+      rules: 'tromp-taylor'
+    };
+    const queryStr = JSON.stringify(query);
+    sendQuery(queryStr);
 
     const onLine = line => {
       console.log('[RECV]', line);
-      if (!line.startsWith('=')) return;
       try {
-        const payload = line.slice(1).trim();
-        const obj = JSON.parse(payload);
-        rl.removeListener('line', onLine);
-        resolve(obj);
+        const obj = JSON.parse(line);
+        if (obj.id === query.id) {
+          rl.removeListener('line', onLine);
+          if (obj.error) {
+            reject(new Error(obj.error));
+          } else {
+            resolve(obj);
+          }
+        }
       } catch (e) {
-        console.error('JSON parse failed:', e);
+        // Ignore parse errors, they could be startup messages
       }
     };
 
